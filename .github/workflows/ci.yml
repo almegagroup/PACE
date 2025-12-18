@@ -1,0 +1,28 @@
+# ===============================
+# PACE ERP — CI BASIC PIPELINE
+# Gate-0 / ID-0.1C
+# Purpose: Governance skeleton
+# ===============================
+
+name: PACE CI
+
+on:
+  push:
+    branches:
+      - dev
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  ci-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: CI Skeleton Check
+        run: |
+          echo "CI pipeline active"
+          echo "Dev → PR → Main flow enforced"
