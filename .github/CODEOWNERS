@@ -1,0 +1,23 @@
+# ===============================
+# PACE ERP — CODEOWNERS
+# Gate-0 / ID-0.1A
+# Purpose: Governance Control
+# ===============================
+
+# Default owner (everything)
+*       @ankangroup/pace-core
+
+# Backend authority (Supabase Edge Functions & DB)
+supabase/              @ankangroup/pace-backend
+supabase/functions/    @ankangroup/pace-backend
+supabase/migrations/   @ankangroup/pace-backend
+
+# Frontend UI (no authority)
+frontend/              @ankangroup/pace-frontend
+
+# Mobile app (future)
+mobile/                @ankangroup/pace-mobile
+
+# Governance & CI
+.github/               @ankangroup/pace-core
+docs/                  @ankangroup/pace-core
