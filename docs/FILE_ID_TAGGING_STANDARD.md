@@ -110,3 +110,26 @@ Authority: Database
 
 - Defined in Gate-0
 - Enforcement pending (ID-0.8A)
+## Enforcement (Gate-0)
+
+During Gate-0, file ID header enforcement is handled through:
+
+1. Mandatory PR review checks
+2. Reviewer verification of header presence
+3. Optional local validation scripts (manual)
+
+Automated CI enforcement is intentionally deferred
+to later gates to avoid early rigidity.
+## Enforcement (Gate-0)
+
+During Gate-0, file ID header enforcement is handled through
+process discipline rather than automated tooling.
+
+The enforcement model includes:
+
+1. Mandatory PR review checks for presence of file headers
+2. Reviewer responsibility to block PRs with missing headers
+3. Optional local validation scripts for developer self-check
+
+Automated CI enforcement is intentionally deferred to later gates
+(ID-0.8A expansion in Gate-2/Gate-3) to avoid early rigidity.
