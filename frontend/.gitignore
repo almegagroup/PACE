@@ -23,5 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 # PACE ERP — Frontend env discipline (Gate-0 / ID-0.2B)
-.env
-.env.*
+# Local-only overrides
+.env.local
+.env.*.local
