@@ -7,6 +7,7 @@
  * Purpose: CSRF protection using Origin/Referer validation for state-changing requests
  * Authority: Backend
  */
+import { logError } from "./logError.ts";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
@@ -39,6 +40,7 @@ export async function applyCSRF(req: Request): Promise<Response | null> {
 
   // 4B — Hard block if neither present
   if (!effectiveOrigin) {
+    logError(req, "CSRF", "CSRF_MISSING_ORIGIN");
     return new Response(
       JSON.stringify({
         status: "ERROR",
