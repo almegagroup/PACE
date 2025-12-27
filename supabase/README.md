@@ -1,7 +1,7 @@
 # PACE ERP — One Codepath Rule
 Gate-0 / ID-0.4A
 
-## Rule (Non-Negotiable)
+## Rule (Non-Negotiable) 
 
 - The same backend code must run in:
   - Local emulator
