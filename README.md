@@ -1,2 +1,2 @@
-# PACE ERP 
+# PACE  ERP 
 Supabase-only, backend-authoritative ERP system. 
