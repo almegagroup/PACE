@@ -1,4 +1,4 @@
-name: Deploy Supabase Edge Functions
+name: Deploy Supabase (DB + Edge Functions)
 
 on:
   push:
@@ -18,6 +18,19 @@ jobs:
         with:
           version: latest
 
+      # ─────────────────────────────
+      # APPLY DATABASE MIGRATIONS
+      # SAFE: incremental only
+      # ─────────────────────────────
+      - name: Apply DB migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          supabase db push
+
+      # ─────────────────────────────
+      # DEPLOY EDGE FUNCTIONS
+      # ─────────────────────────────
       - name: Deploy Edge Functions
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
