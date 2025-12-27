@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Turnstile Test</title>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  </head>
+  <body>
+    <h3>CAPTCHA Test</h3>
+
+    <div
+      class="cf-turnstile"
+      data-sitekey="0x4AAAAAACJM26CICeHtJq1t"
+      data-callback="onSuccess">
+    </div>
+
+    <pre id="out"></pre>
+
+    <script>
+      function onSuccess(token) {
+        document.getElementById("out").textContent =
+          "CAPTCHA TOKEN:\n" + token;
+      }
+    </script>
+  </body>
+</html>

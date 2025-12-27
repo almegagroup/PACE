@@ -47,24 +47,25 @@ export async function applyCORS(
   }
 
   // Preflight handling
-  if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        "Access-Control-Allow-Origin": origin,
-        "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-        "Access-Control-Allow-Credentials": "true",
-        "Vary": "Origin",
-        "Cache-Control": "no-store",
-      },
-    });
-  }
-
-  // Attach allowed origin for final response mapping
+if (req.method === "OPTIONS") {
+  // ✅ MUST set CORS meta BEFORE returning
   (req as unknown as { _cors?: CorsMeta })._cors = {
     allowedOrigin: origin,
   };
+
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": origin,
+      "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE",
+      "Access-Control-Allow-Headers":
+        "Content-Type, Authorization, X-Request-Id",
+      "Access-Control-Allow-Credentials": "true",
+      "Vary": "Origin",
+      "Cache-Control": "no-store",
+    },
+  });
+}
 
   return null;
 }

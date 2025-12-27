@@ -1,23 +1,29 @@
 /*
- * File-ID: ID-5B
+ * File-ID: ID-2.5 + 2.5A + 2.5B
  * File-Path: supabase/functions/api/pipeline/rateLimit.ts
- * Gate: 1
- * Phase: 1
+ * Gate: 2
+ * Phase: 2
  * Domain: SECURITY
- * Purpose: Account-based throttle (heuristic, Gate-1 safe)
- * Authority: Backend
+ * Purpose: Auth login rate limiting only
+ * Authority: Backend (SSOT)
  */
+
+import { logAuthEvent } from "../utils/authAudit.ts";
 
 const WINDOW_MS = 60_000; // 1 minute
 const MAX_IP_REQUESTS = 10;
 const MAX_ACCOUNT_REQUESTS = 5;
 
-// ---- In-memory stores (best effort) ----
+// ---- In-memory stores (best effort, Gate-2 safe) ----
 const ipBucket = new Map<string, { count: number; windowStart: number }>();
 const accountBucket = new Map<
   string,
   { count: number; windowStart: number }
 >();
+
+// ─────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────
 
 function getClientIP(req: Request): string {
   return (
@@ -38,35 +44,35 @@ async function extractAccountHint(req: Request): Promise<string | null> {
 
     const body = await clone.json();
 
-    // Heuristic identifiers only
-    return (
-      body?.email ||
-      body?.username ||
-      body?.userId ||
-      null
-    );
+    // Gate-2 rule:
+    // - identifier only
+    // - no email / userId guessing
+    return body?.identifier
+      ? String(body.identifier).toLowerCase()
+      : null;
   } catch {
     return null;
   }
 }
 
+// ─────────────────────────────────────────────
+// Rate limit entry
+// ─────────────────────────────────────────────
+
 export async function applyRateLimit(
   req: Request
 ): Promise<Response | null> {
-  const method = req.method.toUpperCase();
-  const isStateChanging =
-    method === "POST" ||
-    method === "PUT" ||
-    method === "PATCH" ||
-    method === "DELETE";
+  const path = new URL(req.url).pathname;
 
-  if (!isStateChanging) {
+  // Gate-2 rule:
+  // - Rate limit ONLY login
+  if (!path.endsWith("/auth/login")) {
     return null;
   }
 
   const now = Date.now();
 
-  // ---------- IP BASED (ID-5A) ----------
+  // ───────────── IP BASED (ID-2.5A) ─────────────
   const ip = getClientIP(req);
   const ipEntry = ipBucket.get(ip);
 
@@ -74,36 +80,60 @@ export async function applyRateLimit(
     ipBucket.set(ip, { count: 1, windowStart: now });
   } else {
     ipEntry.count += 1;
-    if (ipEntry.count > MAX_IP_REQUESTS) {
-      return rateLimitResponse("RATE_LIMIT_IP");
-    }
+
+   if (ipEntry.count > MAX_IP_REQUESTS) {
+  await logAuthEvent({
+    eventType: "RATE_LIMITED",
+    identifier: null,
+    ip,
+    requestId: req.headers.get("X-Request-Id") ?? undefined,
+    result: "BLOCKED",
+  });
+
+  return rateLimitResponse();
+}
   }
 
-  // ---------- ACCOUNT BASED (ID-5B) ----------
+  // ───────────── ACCOUNT BASED (ID-2.5B) ─────────────
   const accountHint = await extractAccountHint(req);
 
   if (accountHint) {
-    const key = String(accountHint).toLowerCase();
-    const accEntry = accountBucket.get(key);
+    const accEntry = accountBucket.get(accountHint);
 
     if (!accEntry || now - accEntry.windowStart > WINDOW_MS) {
-      accountBucket.set(key, { count: 1, windowStart: now });
+      accountBucket.set(accountHint, {
+        count: 1,
+        windowStart: now,
+      });
     } else {
       accEntry.count += 1;
+
       if (accEntry.count > MAX_ACCOUNT_REQUESTS) {
-        return rateLimitResponse("RATE_LIMIT_ACCOUNT");
-      }
+  await logAuthEvent({
+    eventType: "RATE_LIMITED",
+    identifier: accountHint,
+    ip,
+    requestId: req.headers.get("X-Request-Id") ?? undefined,
+    result: "BLOCKED",
+  });
+
+  return rateLimitResponse();
+}
     }
   }
 
   return null;
 }
 
-function rateLimitResponse(code: string): Response {
+// ─────────────────────────────────────────────
+// Response helper (SSOT-safe)
+// ─────────────────────────────────────────────
+
+function rateLimitResponse(): Response {
   return new Response(
     JSON.stringify({
       status: "ERROR",
-      code,
+      code: "AUTH_RATE_LIMITED",
       message: "Too many requests. Please retry later.",
       action: "NONE",
       timestamp: new Date().toISOString(),
