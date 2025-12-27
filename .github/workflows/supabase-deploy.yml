@@ -18,21 +18,19 @@ jobs:
         with:
           version: latest
 
-      # 🔑 LINK PROJECT (MANDATORY)
-      - name: Link Supabase project
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: |
-          supabase link --project-ref pprkkavgyfvrccfzuzrf
-
-      # 🛡 SAFE MIGRATIONS (NO RESET)
+      # ─────────────────────────────
+      # APPLY DATABASE MIGRATIONS
+      # SAFE: incremental only
+      # ─────────────────────────────
       - name: Apply DB migrations
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           supabase db push
 
-      # 🚀 DEPLOY EDGE FUNCTIONS
+      # ─────────────────────────────
+      # DEPLOY EDGE FUNCTIONS
+      # ─────────────────────────────
       - name: Deploy Edge Functions
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
