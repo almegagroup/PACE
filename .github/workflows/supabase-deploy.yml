@@ -19,19 +19,19 @@ jobs:
           version: latest
 
       # ─────────────────────────────
-      # DB MIGRATIONS (SAFE, FORWARD ONLY)
+      # APPLY DB MIGRATIONS (SAFE)
       # ─────────────────────────────
       - name: Apply DB migrations
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          supabase db push --project-ref pprkkavgyfvrccfzuzrf
+          supabase db push
 
       # ─────────────────────────────
-      # EDGE FUNCTIONS
+      # DEPLOY EDGE FUNCTIONS
       # ─────────────────────────────
       - name: Deploy Edge Functions
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          supabase functions deploy api --project-ref pprkkavgyfvrccfzuzrf
+          supabase functions deploy api
