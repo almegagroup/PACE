@@ -1,5 +1,5 @@
 /*
- * File-ID: ID-6A+6B
+ * File-ID: ID-6A+6B (FINAL)
  * File-Path: supabase/functions/api/pipeline/session.ts
  * Gate: 1
  * Phase: 1
@@ -14,8 +14,15 @@ import {
   markSessionExpired,
   touchSessionActivity,
 } from "../domains/auth/login/_internals/auth.db.ts";
+
 import { logSessionTransition } from "../domains/auth/login/_internals/session.timeline.ts";
 
+/* ===============================
+   ENV DETECTION (SSOT)
+   =============================== */
+const IS_PROD =
+  Deno.env.get("ENV") === "production" ||
+  Deno.env.get("SUPABASE_ENV") === "production";
 
 /* ===============================
    Gate-3 Idle Timing Controls
@@ -73,9 +80,34 @@ function sessionLogoutResponse(code: string, message: string): Response {
    Session Resolver (Gate-1)
    =============================== */
 export async function resolveSession(req: Request): Promise<SessionResult> {
+
+  /* =========================================================
+     DEV / LOCAL SESSION (HEADER FALLBACK)
+     ========================================================= */
+  if (!IS_PROD) {
+    const devSessionId =
+      req.headers.get("x-dev-session") ||
+      req.headers.get("x-session-id");
+
+    if (devSessionId) {
+      const session = await getSessionById(devSessionId);
+
+      if (session) {
+        return {
+          status: "CLAIMED",
+          sessionId: devSessionId,
+          state: session.state,
+          response: null,
+        };
+      }
+    }
+  }
+
+  /* =========================================================
+     PROD / COOKIE BASED SESSION (AUTHORITATIVE)
+     ========================================================= */
   const cookieHeader = req.headers.get("cookie");
 
-  // ── No cookie → anonymous
   if (!cookieHeader) {
     return { status: "ANONYMOUS", state: "NONE", response: null };
   }
@@ -90,14 +122,15 @@ export async function resolveSession(req: Request): Promise<SessionResult> {
   }
 
   const sessionId = sessionCookie.replace("pace_session=", "");
-
-  // ── Fetch authoritative session
   const session = await getSessionById(sessionId);
 
   if (!session) {
     return { status: "ANONYMOUS", state: "NONE", response: null };
   }
 
+  /* =========================================================
+     EXISTING LIFECYCLE LOGIC (UNCHANGED)
+     ========================================================= */
   const now = Date.now();
   const lastActivity = new Date(session.last_activity_at).getTime();
   const createdAt = new Date(session.created_at).getTime();
@@ -113,30 +146,28 @@ export async function resolveSession(req: Request): Promise<SessionResult> {
      Gate-3.2 Absolute TTL (TOP PRIORITY)
      =============================== */
   if (sessionAge >= ABSOLUTE_TTL_MS) {
-  await markSessionExpired(session.id);
+    await markSessionExpired(session.id);
 
-  // ─────────────────────────────────────────
-  // ID-3.8 :: Session Timeline Log (ABSOLUTE TTL)
-  // ─────────────────────────────────────────
-  await logSessionTransition({
-    sessionId,
-    fromState: "ACTIVE",
-    toState: "EXPIRED",
-    event: "ABSOLUTE_TTL",
-    requestId: req.headers.get("X-Request-Id") ?? undefined,
-    source: "session.resolver",
-  });
+    await logSessionTransition({
+      sessionId,
+      fromState: "ACTIVE",
+      toState: "EXPIRED",
+      event: "ABSOLUTE_TTL",
+      requestId: req.headers.get("X-Request-Id") ?? undefined,
+      source: "session.resolver",
+    });
 
-  return {
-    status: "CLAIMED",
-    sessionId,
-    state: "EXPIRED",
-    response: sessionLogoutResponse(
-      "SESSION_ABSOLUTE_TIMEOUT",
-      "Session expired due to maximum lifetime."
-    ),
-  };
-}
+    return {
+      status: "CLAIMED",
+      sessionId,
+      state: "EXPIRED",
+      response: sessionLogoutResponse(
+        "SESSION_ABSOLUTE_TIMEOUT",
+        "Session expired due to maximum lifetime."
+      ),
+    };
+  }
+
   if (sessionAge >= ABSOLUTE_WARN_FINAL_MS) {
     ttlWarning = "FINAL";
   } else if (sessionAge >= ABSOLUTE_WARN_SOFT_MS) {
@@ -144,7 +175,7 @@ export async function resolveSession(req: Request): Promise<SessionResult> {
   }
 
   /* ===============================
-     ID-3.1 ACTIVE → IDLE
+     ACTIVE → IDLE
      =============================== */
   if (session.state === "ACTIVE") {
     if (
@@ -155,39 +186,34 @@ export async function resolveSession(req: Request): Promise<SessionResult> {
     }
 
     if (inactiveFor >= IDLE_THRESHOLD_MS) {
-  await markSessionIdle(session.id);
-  effectiveState = "IDLE";
+      await markSessionIdle(session.id);
+      effectiveState = "IDLE";
 
-  // ─────────────────────────────────────────
-  // ID-3.8 :: Session Timeline Log (ACTIVE → IDLE)
-  // ─────────────────────────────────────────
-  await logSessionTransition({
-    sessionId,
-    fromState: "ACTIVE",
-    toState: "IDLE",
-    event: "IDLE_THRESHOLD",
-    requestId: req.headers.get("X-Request-Id") ?? undefined,
-    source: "session.resolver",
-  });
-}
+      await logSessionTransition({
+        sessionId,
+        fromState: "ACTIVE",
+        toState: "IDLE",
+        event: "IDLE_THRESHOLD",
+        requestId: req.headers.get("X-Request-Id") ?? undefined,
+        source: "session.resolver",
+      });
+    }
   }
 
   /* ===============================
-     ID-3.1B IDLE → EXPIRED
+     IDLE → EXPIRED
      =============================== */
   if (effectiveState === "IDLE" && inactiveFor >= IDLE_HARD_LIMIT_MS) {
     await markSessionExpired(session.id);
-      // ─────────────────────────────────────────
-  // ID-3.8 :: Session Timeline Log (IDLE TIMEOUT)
-  // ─────────────────────────────────────────
-  await logSessionTransition({
-    sessionId,
-    fromState: "IDLE",
-    toState: "EXPIRED",
-    event: "IDLE_TIMEOUT",
-    requestId: req.headers.get("X-Request-Id") ?? undefined,
-    source: "session.resolver",
-  });
+
+    await logSessionTransition({
+      sessionId,
+      fromState: "IDLE",
+      toState: "EXPIRED",
+      event: "IDLE_TIMEOUT",
+      requestId: req.headers.get("X-Request-Id") ?? undefined,
+      source: "session.resolver",
+    });
 
     return {
       status: "CLAIMED",
@@ -199,8 +225,9 @@ export async function resolveSession(req: Request): Promise<SessionResult> {
       ),
     };
   }
-    /* ===============================
-     ID-3.4A Admin Force Revoke
+
+  /* ===============================
+     Admin Force Revoke
      =============================== */
   if (
     effectiveState === "REVOKED" &&
@@ -217,10 +244,6 @@ export async function resolveSession(req: Request): Promise<SessionResult> {
     };
   }
 
-
-  /* ===============================
-     Hard stop states
-     =============================== */
   if (effectiveState === "REVOKED") {
     return {
       status: "CLAIMED",
@@ -246,7 +269,7 @@ export async function resolveSession(req: Request): Promise<SessionResult> {
   }
 
   /* ===============================
-     ACTIVE / IDLE pass-through
+     ACTIVE / IDLE PASS THROUGH
      =============================== */
   await touchSessionActivity(session.id);
 

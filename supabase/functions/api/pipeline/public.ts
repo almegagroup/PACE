@@ -4,16 +4,36 @@
  * Gate: 1
  * Phase: 1
  * Domain: SECURITY
- * Purpose: Guard bypass ban — assert only /health can bypass pipeline
+ * Purpose: Guard bypass ban — assert only explicit public auth endpoints can bypass pipeline
  * Authority: Backend
  */
 
 export function isPublicPath(req: Request): boolean {
-  const path = new URL(req.url).pathname;
+  let path = new URL(req.url).pathname;
 
+  // Normalize
+  if (path.startsWith("/api")) {
+    path = path.slice(4);
+  }
+
+  // 🚫 HARD BAN: admin namespace can NEVER be public
+  if (path.startsWith("/admin")) {
+    return false;
+  }
+
+  // ✅ Explicit public endpoints only
   return (
     path === "/health" ||
-    path.endsWith("/auth/login")||
-     path.endsWith("/auth/signup-request")
+    path === "/auth/login" ||
+    path === "/auth/signup-request" ||
+    path === "/auth/status-check" ||
+    path === "/auth/first-login" ||
+    path === "/auth/human-challenge" ||
+    path === "/auth/forgot-password" ||
+    path === "/auth/forgot-passcode" ||
+    path === "/auth/reset-request" ||
+    path === "/auth/reset-complete"
   );
 }
+
+
