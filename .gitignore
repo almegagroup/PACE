@@ -1,0 +1,39 @@
+# =========================
+# ENV FILES (NEVER COMMIT)
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# LOCAL / PRIVATE SCRIPTS
+# =========================
+scripts/
+
+# =========================
+# SUPABASE LOCAL / SECRETS
+# =========================
+supabase/functions/.gitignore
+supabase/seeds/
+
+# =========================
+# NODE / BUILD
+# =========================
+node_modules/
+dist/
+build/
+.vite/
+# env
+.env
+.env.local
+.env.*
+
+# local scripts & seeds
+scripts/
+supabase/seeds/
+
+# local function ignores
+supabase/functions/.gitignore
+
+# misc local
+*.log

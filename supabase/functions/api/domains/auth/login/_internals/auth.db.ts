@@ -19,7 +19,9 @@ import { logSessionTransition } from "./session.timeline.ts";
 // ENV (Injected automatically by Supabase Edge Runtime)
 // -----------------------------------------------------------------------------
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const SERVICE_ROLE_KEY =
+  Deno.env.get("SERVICE_ROLE_KEY") ??
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
   throw new Error("SUPABASE_ENV_MISSING");
@@ -255,5 +257,17 @@ export async function getLastSessionDeviceTag(
 
   return data?.device_tag ?? null;
 }
+// -----------------------------------------------------------------------------
+// Gate-4 Helper: getPublicDb
+// -----------------------------------------------------------------------------
+// Purpose:
+// - ONLY for public tables like auth_signup_requests
+// - Service role, RLS bypass
+// - MUST NOT be used for auth/session tables
+// -----------------------------------------------------------------------------
+export function getPublicDb() {
+  return serviceClient.schema("public");
+}
+
 
 

@@ -3,27 +3,11 @@
 // Gate  : 2 (AUTH)
 // ID    : 2.1B (Account State Check)
 // File  : account.state.ts
-// Role  : Validate whether authenticated user is allowed to login
-// Status: ACTIVE (Gate-2 In Progress)
+// Status: FINAL (Gate-4 Aware)
 // ----------------------------------------------------------------------------
-// SSOT RULE:
-// - This file checks ONLY account state eligibility
-// - NO password validation
-// - NO session creation
-// - NO cookies
-// - NO response shaping
-// ============================================================================
 
 import { LOGIN_INTERNAL_FAILURE, ACCOUNT_STATE } from './login.types.ts';
 
-/* ============================================================================
- * checkAccountState
- * ---------------------------------------------------------------------------
- * Responsibilities:
- * - Decide if verified user account is eligible for login
- * - Enforce ACTIVE-only login policy
- * ============================================================================
- */
 export function checkAccountState(
   user: { account_state?: string; [key: string]: any }
 ) {
@@ -34,23 +18,50 @@ export function checkAccountState(
     };
   }
 
-  // -------- Account eligibility --------
-  if (user.account_state !== ACCOUNT_STATE.ACTIVE) {
-    if (user.account_state === ACCOUNT_STATE.LOCKED) {
-      return {
-        ok: false,
-        reason: LOGIN_INTERNAL_FAILURE.ACCOUNT_LOCKED,
-      };
-    }
+  const state = user.account_state;
 
+  // ─────────────────────────────────────────
+  // HARD BLOCK STATES
+  // ─────────────────────────────────────────
+
+  if (state === ACCOUNT_STATE.LOCKED) {
+    return {
+      ok: false,
+      reason: LOGIN_INTERNAL_FAILURE.ACCOUNT_LOCKED,
+    };
+  }
+
+  if (state === ACCOUNT_STATE.RESET_REQUIRED) {
+    return {
+      ok: false,
+      reason: LOGIN_INTERNAL_FAILURE.RESET_REQUIRED,
+    };
+  }
+
+  if (state === ACCOUNT_STATE.DISABLED) {
     return {
       ok: false,
       reason: LOGIN_INTERNAL_FAILURE.ACCOUNT_DISABLED,
     };
   }
 
-  // -------- Success --------
+  // ─────────────────────────────────────────
+  // ALLOWED TO PROCEED (handled later)
+  // ─────────────────────────────────────────
+
+  if (state === ACCOUNT_STATE.FIRST_LOGIN_REQUIRED) {
+    return { ok: true };
+  }
+
+  if (state === ACCOUNT_STATE.ACTIVE) {
+    return { ok: true };
+  }
+
+  // ─────────────────────────────────────────
+  // SAFETY NET (unknown state)
+  // ─────────────────────────────────────────
   return {
-    ok: true,
+    ok: false,
+    reason: LOGIN_INTERNAL_FAILURE.ACCOUNT_DISABLED,
   };
 }

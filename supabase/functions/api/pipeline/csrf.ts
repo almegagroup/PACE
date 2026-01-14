@@ -1,22 +1,40 @@
 /*
- * File-ID: ID-4
+ * File-ID: ID-4 (FINAL)
  * File-Path: supabase/functions/api/pipeline/csrf.ts
  * Gate: 1
  * Phase: 1
  * Domain: SECURITY
- * Purpose: CSRF protection using Origin/Referer validation for state-changing requests
+ * Purpose: CSRF protection using Origin/Referer validation
  * Authority: Backend
+ *
+ * SSOT RULES:
+ * - CSRF applies ONLY to user-facing state-changing routes
+ * - Admin / governance routes are SESSION + ROLE protected
+ * - CSRF MUST NOT block admin automation or governance
  */
+
+import { getAllowedOrigins } from "./origins.ts";
 import { logError } from "./logError.ts";
 
+// ─────────────────────────────────────────
+// SAFE METHODS (no CSRF required)
+// ─────────────────────────────────────────
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
-const ALLOWED_ORIGINS = new Set<string>([
-  "https://erp.almegagroup.in",
-  "http://localhost:5173",
-]);
+// ─────────────────────────────────────────
+// CSRF BYPASS PATHS (CRITICAL)
+// ─────────────────────────────────────────
+const CSRF_BYPASS_PATH_PREFIXES = [
+  "/api/admin/",      // Admin governance
+  "/api/internal/",   // Future internal automations
+];
 
-function extractOriginFromReferer(referer: string | null): string | null {
+// ─────────────────────────────────────────
+// Helper: extract origin from referer
+// ─────────────────────────────────────────
+function extractOriginFromReferer(
+  referer: string | null
+): string | null {
   if (!referer) return null;
   try {
     return new URL(referer).origin;
@@ -25,27 +43,58 @@ function extractOriginFromReferer(referer: string | null): string | null {
   }
 }
 
-export async function applyCSRF(req: Request): Promise<Response | null> {
-  // 4A — Safe method bypass
+// ─────────────────────────────────────────
+// CSRF Middleware
+// ─────────────────────────────────────────
+export async function applyCSRF(
+  req: Request
+): Promise<Response | null> {
+
+  // ⚠️ IMPORTANT:
+  // Env access MUST be inside request lifecycle
+  const ALLOWED_ORIGINS = getAllowedOrigins();
+
+  const path = new URL(req.url).pathname;
+
+  // ─────────────────────────────────────────
+  // 1️⃣ Bypass CSRF for admin / internal routes
+  // ─────────────────────────────────────────
+  if (
+    CSRF_BYPASS_PATH_PREFIXES.some(prefix =>
+      path.startsWith(prefix)
+    )
+  ) {
+    return null;
+  }
+
+  // ─────────────────────────────────────────
+  // 2️⃣ Safe HTTP methods bypass
+  // ─────────────────────────────────────────
   if (SAFE_METHODS.has(req.method)) {
     return null;
   }
 
+  // ─────────────────────────────────────────
+  // 3️⃣ Extract origin
+  // ─────────────────────────────────────────
   const origin = req.headers.get("Origin");
   const referer = req.headers.get("Referer");
 
-  // Prefer Origin, fallback to Referer
   const effectiveOrigin =
     origin ?? extractOriginFromReferer(referer);
 
-  // 4B — Hard block if neither present
+  // ─────────────────────────────────────────
+  // 4️⃣ Block if no origin (state-changing)
+  // ─────────────────────────────────────────
   if (!effectiveOrigin) {
     logError(req, "CSRF", "CSRF_MISSING_ORIGIN");
+
     return new Response(
       JSON.stringify({
         status: "ERROR",
         code: "CSRF_MISSING_ORIGIN",
-        message: "Missing Origin/Referer for state-changing request.",
+        message:
+          "Missing Origin/Referer for state-changing request.",
         action: "NONE",
         timestamp: new Date().toISOString(),
       }),
@@ -59,13 +108,18 @@ export async function applyCSRF(req: Request): Promise<Response | null> {
     );
   }
 
-  // Validate against allowlist
+  // ─────────────────────────────────────────
+  // 5️⃣ Validate origin allowlist
+  // ─────────────────────────────────────────
   if (!ALLOWED_ORIGINS.has(effectiveOrigin)) {
+    logError(req, "CSRF", "CSRF_ORIGIN_MISMATCH");
+
     return new Response(
       JSON.stringify({
         status: "ERROR",
         code: "CSRF_ORIGIN_MISMATCH",
-        message: "Origin not allowed for state-changing request.",
+        message:
+          "Origin not allowed for state-changing request.",
         action: "NONE",
         timestamp: new Date().toISOString(),
       }),
@@ -79,6 +133,8 @@ export async function applyCSRF(req: Request): Promise<Response | null> {
     );
   }
 
-  // Passed CSRF checks
+  // ─────────────────────────────────────────
+  // 6️⃣ Passed CSRF checks
+  // ─────────────────────────────────────────
   return null;
 }

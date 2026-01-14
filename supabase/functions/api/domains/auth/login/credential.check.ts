@@ -3,72 +3,81 @@
 // Gate  : 2 (AUTH)
 // ID    : 2.1A (Credential Validation)
 // File  : credential.check.ts
-// Role  : Validate login identifier & password correctness
-// Status: ACTIVE (Gate-2 In Progress)
+// Role  : Validate login identifier existence & basic eligibility
+// Status: ACTIVE (Gate-2)
 // ----------------------------------------------------------------------------
 // SSOT RULE:
-// - This file validates ONLY credential correctness
-// - NO account policy checks (disabled / locked)
+// - This file validates ONLY identifier existence
+// - NO password verification
+// - NO account policy enforcement (LOCKED / DISABLED)
 // - NO session creation
 // - NO cookies
 // ============================================================================
 
+import { LOGIN_INTERNAL_FAILURE } from "./login.types.ts";
+import { getServiceDb } from "./_internals/auth.db.ts";
 
-
-import { LOGIN_INTERNAL_FAILURE } from './login.types.ts';
-import { getServiceDb } from './_internals/auth.db.ts';
-
+/* ─────────────────────────────────────────
+ * Normalize identifier to canonical form
+ * ───────────────────────────────────────── */
 function normalizeIdentifier(identifier?: string): string | null {
-  if (!identifier || typeof identifier !== 'string') return null;
+  if (!identifier || typeof identifier !== "string") return null;
 
   const raw = identifier.trim().toLowerCase();
-  return raw.includes('@') ? raw : `${raw}@pace.in`;
+  return raw.includes("@") ? raw : `${raw}@pace.in`;
 }
 
+/* ─────────────────────────────────────────
+ * checkCredentials
+ * ─────────────────────────────────────────
+ * Responsibility:
+ * - Ensure identifier exists in secure.auth_users
+ * - Return minimal user identity for downstream steps
+ * - Do NOT validate password
+ * ───────────────────────────────────────── */
 export async function checkCredentials(
   { identifier }: { identifier?: string }
 ) {
-     // 🔍 DEBUG LOG — function entry
-  console.log('[CRED] called with identifier =', identifier);
+  // Defensive input validation
   if (!identifier) {
-    console.log('[CRED] FAIL: identifier missing');
-    return { ok: false, reason: LOGIN_INTERNAL_FAILURE.BAD_INPUT };
+    return {
+      ok: false,
+      reason: LOGIN_INTERNAL_FAILURE.BAD_INPUT,
+    };
   }
 
   const canonicalId = normalizeIdentifier(identifier);
-  console.log('[CRED] canonical identifier =', canonicalId);
   if (!canonicalId) {
-    console.log('[CRED] FAIL: canonicalId invalid');
-    return { ok: false, reason: LOGIN_INTERNAL_FAILURE.BAD_INPUT };
+    return {
+      ok: false,
+      reason: LOGIN_INTERNAL_FAILURE.BAD_INPUT,
+    };
   }
 
+  // Service-role DB (secure schema)
   const db = getServiceDb();
-  console.log('[CRED] service DB acquired');
 
   const { data: user, error } = await db
-    .from('auth_users')
-    .select('id, state')
-    .eq('identifier', canonicalId)
-    .single();
-     // 🔍 DEBUG LOG — DB result
-  console.log('[CRED] DB result user =', user);
-  console.log('[CRED] DB error =', error);
+    .from("auth_users")
+    .select("id, state")
+    .eq("identifier", canonicalId)
+    .maybeSingle();
 
   if (error || !user) {
-     console.log('[CRED] FAIL: user not found');
-    return { ok: false, reason: LOGIN_INTERNAL_FAILURE.USER_NOT_FOUND };
+    return {
+      ok: false,
+      reason: LOGIN_INTERNAL_FAILURE.USER_NOT_FOUND,
+    };
   }
 
-  if (user.state !== 'ACTIVE') {
-    console.log('[CRED] FAIL: user not ACTIVE, state =', user.state);
-    return { ok: false, reason: LOGIN_INTERNAL_FAILURE.ACCOUNT_DISABLED };
-  }
- console.log('[CRED] SUCCESS: user id =', user.id);
+  // NOTE:
+  // - State is NOT enforced here
+  // - Passed through for ID-2.1B (account.state.ts)
   return {
-  ok: true,
-  data: {
-    id: user.id,
-    account_state: user.state, // 🔥 THIS LINE
-  },
-};
+    ok: true,
+    data: {
+      id: user.id,
+      account_state: user.state,
+    },
+  };
 }

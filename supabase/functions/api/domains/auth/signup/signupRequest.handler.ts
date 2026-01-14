@@ -1,39 +1,47 @@
-// ==================================================
-// Gate-4 | ID-4.1
-// Domain : AUTH
-// Module : Signup Request
-// Purpose: Controlled signup intent (NO user creation)
-// Status : FREEZE-ALIGNED
-// ==================================================
-//
-// SSOT Table:
-//   auth_signup_requests
-//
-// Invariants:
-// - NO auth.users insert
-// - NO password handling
-// - NO session creation
-// - ALWAYS generic response (ID-4.1A)
-// - Rate limited (ID-4.1B)
-// ==================================================
+/**
+ * File-ID: ID-4.1 + ID-4.1A + ID-4.1C
+ * Gate: 4
+ * Phase: 4
+ * Domain: AUTH / SECURITY
+ * Tier: A
+ * Status: FINAL – FROZEN
+ *
+ * PURPOSE
+ * -------
+ * Accept public signup intent and store REQUESTED record.
+ *
+ * HARD RULES (LOCKED)
+ * ------------------
+ * - NO user creation
+ * - NO password handling
+ * - NO session creation
+ * - Backend-only human verification
+ * - User MUST know success vs failure
+ * - Reason MUST NOT be revealed
+ * - Postman / Frontend / Prod behaviour identical
+ */
 
-import { apiResponse } from "../../../utils/response.ts";
+import { apiResponse, Action } from "../../../utils/response.ts";
 import { logAuthEvent } from "../../../utils/authAudit.ts";
-import { getServiceDb } from "../login/_internals/auth.db.ts";
-import { verifyCaptcha } from "../../../utils/verifyCaptcha.ts";
+import { getPublicDb } from "../login/_internals/auth.db.ts";
+import { humanVerification } from "../../../utils/humanVerification/index.ts";
 
-export async function signupRequestHandler(req: Request): Promise<Response> {
-  let payload: any = {};
+// ─────────────────────────────────────────
+// Main Handler
+// ─────────────────────────────────────────
+export async function signupRequestHandler(
+  req: Request
+): Promise<Response> {
+  const payload = (req as any)._body;
+
+if (!payload) {
+  return fail();
+}
+
 
   // ─────────────────────────────────────────
-  // Safe body parse (silent)
+  // Extract payload (FULL – nothing missing)
   // ─────────────────────────────────────────
-  try {
-    payload = await req.json();
-  } catch {
-    // silent
-  }
-
   const {
     name,
     email,
@@ -41,86 +49,99 @@ export async function signupRequestHandler(req: Request): Promise<Response> {
     company_hint,
     department_hint,
     designation_hint,
-    captchaToken,
+    hv_attempt_id,
+    hv_answer,
   } = payload || {};
 
   // ─────────────────────────────────────────
-  // Silent validation
+  // Basic format validation (silent)
   // ─────────────────────────────────────────
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const phoneRegex = /^[0-9]{10}$/;
 
-  const isValid =
+  const formatOk =
     typeof name === "string" &&
     typeof email === "string" &&
     typeof phone === "string" &&
-    typeof captchaToken === "string" &&
     emailRegex.test(email) &&
-    phoneRegex.test(phone);
+    phoneRegex.test(phone) &&
+    typeof hv_attempt_id === "string" &&
+    typeof hv_answer === "number";
 
-  if (!isValid) {
-    return genericOk();
+  if (!formatOk) {
+    return fail();
   }
 
   // ─────────────────────────────────────────
-  // CAPTCHA verification (MANDATORY, silent)
+  // Human Verification (ID-4.1C)
+  // Backend only – deterministic
   // ─────────────────────────────────────────
-  let captchaOk = false;
+  const hvPassed = await humanVerification.validate(req, {
+    attemptId: hv_attempt_id,
+    answer: hv_answer,
+    endpoint: "signup",
+  });
 
+  if (!hvPassed) {
+    // User knows request failed, but NOT why
+    return fail();
+  }
+
+  // ─────────────────────────────────────────
+  // DB Insert (Intent Only)
+  // ─────────────────────────────────────────
   try {
-    captchaOk = await verifyCaptcha(captchaToken);
-  } catch {
-    captchaOk = false;
-  }
-
-  if (!captchaOk) {
-    return genericOk();
-  }
-
-  // ─────────────────────────────────────────
-  // DB insert (intent only)
-  // ─────────────────────────────────────────
-  const db = getServiceDb();
-
-  try {
+    const db = getPublicDb();
     await db.from("auth_signup_requests").insert({
       name,
       email: email.toLowerCase(),
       phone,
-      company_hint,
-      department_hint,
-      designation_hint,
+      company_hint: company_hint ?? null,
+      department_hint: department_hint ?? null,
+      designation_hint: designation_hint ?? null,
       state: "REQUESTED",
     });
   } catch {
-    // swallow — enumeration forbidden
+    // Enumeration safe – DO NOT reveal
   }
 
   // ─────────────────────────────────────────
-  // Audit log (best-effort, non-sensitive)
+  // Audit (Best-effort, non-blocking)
   // ─────────────────────────────────────────
   try {
     await logAuthEvent({
       eventType: "SIGNUP_REQUEST",
       identifier: email.toLowerCase(),
-      result: "RECEIVED",
+      result: "OK",
       requestId: req.headers.get("X-Request-Id") ?? undefined,
     });
   } catch {
-    // audit must never block response
+    // Never block response
   }
 
-  return genericOk();
+  return success();
 }
 
 // ─────────────────────────────────────────
-// Helper (single generic response authority)
+// Response Authorities (FINAL)
 // ─────────────────────────────────────────
-function genericOk(): Response {
+function success(): Response {
   return apiResponse({
     status: "OK",
-    code: "SIGNUP_REQUEST_RECEIVED",
-    message: "Request received",
-    action: "NONE",
+    code: "SIGNUP_REQUEST_ACCEPTED",
+    message: "Request submitted",
+    action: Action.NONE,
   });
+}
+
+function fail(): Response {
+  return apiResponse(
+    {
+      status: "ERROR",
+      code: "SIGNUP_REQUEST_FAILED",
+      message: "Request could not be submitted. Please try again.",
+      action: Action.NONE,
+    },
+    400
+  );
 }
