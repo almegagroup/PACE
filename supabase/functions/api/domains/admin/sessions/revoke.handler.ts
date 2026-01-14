@@ -29,10 +29,12 @@ export async function adminRevokeSessionsHandler(
     );
   }
 
-  let body: any;
-  try {
-    body = await req.json();
-  } catch {
+  // ─────────────────────────────────────────
+  // SSOT body access
+  // ─────────────────────────────────────────
+  const body = (req as any)._body;
+
+  if (!body) {
     return ctx.respond(
       {
         status: "ERROR",
@@ -43,7 +45,7 @@ export async function adminRevokeSessionsHandler(
     );
   }
 
-  const { userId } = body || {};
+  const { userId } = body;
   if (!userId) {
     return ctx.respond(
       {
@@ -67,3 +69,4 @@ export async function adminRevokeSessionsHandler(
     200
   );
 }
+

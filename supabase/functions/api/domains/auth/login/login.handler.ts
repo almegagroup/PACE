@@ -1,20 +1,20 @@
 // ============================================================================
 // PACE-ERP :: AUTH DOMAIN
-// Gate  : 2 (AUTH)
+// Gate  : 2 (AUTH) + Gate-4.3 Overlay
 // ID    : 2.1 (Login API Orchestrator)
 // File  : login.handler.ts
 // Role  : Orchestrate login flow (2.1A -> 2.1B -> 2.1C)
-// Status: ACTIVE (Gate-2 In Progress)
+// Status: FINAL (Gate-4.3 READY)
 // ----------------------------------------------------------------------------
 // SSOT RULE:
-// - This file orchestrates ONLY (no business logic)
-// - All failures map to generic AUTH_LOGIN_FAILED externally
+// - Orchestrator ONLY (no business logic)
+// - Password verified against secure.auth_users
+// - Gate-4.3 / 4.3A enforced HERE (early return)
+// - SA / GA ALWAYS bypass ACL
 // - No cookies here (ID-2.2)
-// - No roles / context / ACL
 // ============================================================================
 
 import { LOGIN_PUBLIC_CODE } from "./login.types.ts";
-import { checkCredentials } from "./credential.check.ts";
 import { checkAccountState } from "./account.state.ts";
 import { createSession } from "./session.create.ts";
 import { logAuthEvent } from "../../../utils/authAudit.ts";
@@ -25,43 +25,27 @@ import {
 } from "./_internals/auth.db.ts";
 
 import { generateDeviceTag } from "./_internals/device.tag.ts";
-
-// ⬇️ Supabase client (password verification only)
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const supabase = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_ANON_KEY")!
-);
+import { verifyPassword } from "./_internals/auth.password.ts";
+import { getServiceDb } from "./_internals/auth.db.ts";
 
 export async function loginHandler(
   req: Request,
   ctx: { respond: Function }
 ) {
-  // ─────────────────────────────────────────
-  // ENV sanity check (debug only)
-  // ─────────────────────────────────────────
-  console.log("ENV_CHECK", {
-    SUPABASE_URL: !!Deno.env.get("SUPABASE_URL"),
-    SUPABASE_ANON_KEY: !!Deno.env.get("SUPABASE_ANON_KEY"),
-    SUPABASE_SERVICE_ROLE_KEY: !!Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
-  });
-
   try {
     // ─────────────────────────────────────────
-    // Parse request body
+    // 1️⃣ Parse request body (SSOT)
     // ─────────────────────────────────────────
-    let body: any;
-    try {
-      body = await req.json();
-    } catch {
+    const body = (req as any)._body;
+
+    if (!body) {
       return ctx.respond(
         { ok: false, code: LOGIN_PUBLIC_CODE.FAILED, action: "NONE" },
         401
       );
     }
 
-    const { identifier, password } = body || {};
+    const { identifier, password } = body;
     if (!identifier || !password) {
       return ctx.respond(
         { ok: false, code: LOGIN_PUBLIC_CODE.FAILED, action: "NONE" },
@@ -70,43 +54,27 @@ export async function loginHandler(
     }
 
     // ─────────────────────────────────────────
-    // STEP-0: Supabase password verification
+    // 2️⃣ Canonical identifier
     // ─────────────────────────────────────────
-    const email = String(identifier).includes("@")
+    const canonicalId = String(identifier)
+      .trim()
+      .toLowerCase()
+      .includes("@")
       ? String(identifier).trim().toLowerCase()
       : `${String(identifier).trim().toLowerCase()}@pace.in`;
 
-    const { data: authData, error: authError } =
-      await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-    console.log("[LOGIN] SUPABASE_AUTH_RESULT", {
-      hasUser: !!authData?.user,
-      error: authError?.message ?? null,
-    });
-
-    if (authError || !authData?.user) {
-      await logAuthEvent({
-        eventType: "LOGIN_FAILED",
-        identifier,
-        result: "FAILED",
-      });
-
-      return ctx.respond(
-        { ok: false, code: LOGIN_PUBLIC_CODE.FAILED, action: "NONE" },
-        401
-      );
-    }
-
     // ─────────────────────────────────────────
-    // ID-2.1A: ERP credential check
+    // 3️⃣ Load user identity
     // ─────────────────────────────────────────
-    const credResult = await checkCredentials({ identifier });
-    console.log("[LOGIN] CRED_RESULT", credResult);
+    const db = getServiceDb();
 
-    if (!credResult.ok) {
+    const { data: user, error } = await db
+      .from("auth_users")
+      .select("id, state, is_sa, is_ga, acl_assigned")
+      .eq("identifier", canonicalId)
+      .single();
+
+    if (error || !user) {
       await logAuthEvent({
         eventType: "LOGIN_FAILED",
         identifier,
@@ -120,15 +88,40 @@ export async function loginHandler(
       );
     }
 
-    const user = credResult.data;
+    // ─────────────────────────────────────────
+    // 4️⃣ Password verification
+    // ─────────────────────────────────────────
+    const passwordOk = await verifyPassword(user.id, password);
+
+    if (!passwordOk) {
+      await logAuthEvent({
+        eventType: "LOGIN_FAILED",
+        identifier,
+        result: "FAILED",
+        requestId: req.headers.get("X-Request-Id") ?? undefined,
+      });
+
+      return ctx.respond(
+        { ok: false, code: LOGIN_PUBLIC_CODE.FAILED, action: "NONE" },
+        401
+      );
+    }
 
     // ─────────────────────────────────────────
-    // ID-2.1B: Account state check
+    // 🔑 Load credential lifecycle (Gate-4)
     // ─────────────────────────────────────────
-    const stateResult = checkAccountState(
-      user as { account_state?: string }
-    );
-    console.log("[LOGIN] STATE_RESULT", stateResult);
+    const { data: creds } = await db
+      .from("auth_credentials")
+      .select("force_first_login")
+      .eq("user_id", user.id)
+      .single();
+
+    // ─────────────────────────────────────────
+    // 5️⃣ Account state check (ID-2.1B)
+    // ─────────────────────────────────────────
+    const stateResult = checkAccountState({
+      account_state: user.state,
+    });
 
     if (!stateResult.ok) {
       await logAuthEvent({
@@ -145,18 +138,58 @@ export async function loginHandler(
     }
 
     // ─────────────────────────────────────────
-    // Gate-3.5A :: Device Change Signal (SOFT)
+    // 🔐 Gate-4.3 / 4.3A / Option-B Enforcement
+    // ─────────────────────────────────────────
+
+    // 1️⃣ SA / GA bypass ALL first-login & ACL gates
+    if (!(user.is_sa || user.is_ga)) {
+      // 2️⃣ First login pending → allow login BUT force FIRST_LOGIN screen
+      if (creds?.force_first_login === true) {
+        await logAuthEvent({
+          eventType: "FIRST_LOGIN_REQUIRED",
+          identifier,
+          result: "OK",
+          requestId: req.headers.get("X-Request-Id") ?? undefined,
+        });
+
+        return ctx.respond(
+          {
+            status: "OK",
+            code: LOGIN_PUBLIC_CODE.SUCCESS,
+            message: "First login required",
+            action: "FIRST_LOGIN",
+          },
+          200
+        );
+      }
+
+      // 3️⃣ ACL not assigned → HARD BLOCK (WAIT FOR ACCESS)
+      if (user.acl_assigned !== true) {
+        await logAuthEvent({
+          eventType: "LOGIN_BLOCKED_ACL",
+          identifier,
+          result: "BLOCKED",
+          requestId: req.headers.get("X-Request-Id") ?? undefined,
+        });
+
+        return ctx.respond(
+          {
+            ok: false,
+            code: LOGIN_PUBLIC_CODE.FAILED,
+            action: "WAIT_FOR_ACCESS",
+          },
+          403
+        );
+      }
+    }
+
+    // ─────────────────────────────────────────
+    // 6️⃣ Device change signal (Gate-3.5A)
     // ─────────────────────────────────────────
     const currentDeviceTag = generateDeviceTag(req);
     const lastDeviceTag = await getLastSessionDeviceTag(user.id);
 
     if (lastDeviceTag && lastDeviceTag !== currentDeviceTag) {
-      console.warn("[Gate-3.5A] DEVICE_CHANGED", {
-        userId: user.id,
-        lastDeviceTag,
-        currentDeviceTag,
-      });
-
       await logAuthEvent({
         eventType: "DEVICE_CHANGED",
         identifier,
@@ -166,12 +199,9 @@ export async function loginHandler(
     }
 
     // ─────────────────────────────────────────
-    // ID-2.1C: Session creation (Gate-3.5 device tag inside)
+    // 7️⃣ Session creation (ID-2.1C)
     // ─────────────────────────────────────────
-    const sessionResult = await createSession(
-      user as { id: string },
-      req
-    );
+    const sessionResult = await createSession({ id: user.id }, req);
 
     if (!sessionResult.ok) {
       await logAuthEvent({
@@ -188,17 +218,15 @@ export async function loginHandler(
     }
 
     // ─────────────────────────────────────────
-    // Gate-3.3: Single Active Session Enforcement
+    // 8️⃣ Single active session enforcement
     // ─────────────────────────────────────────
     await revokeOtherSessions(
       user.id,
       sessionResult.data.session_id
     );
 
-    console.log("[LOGIN] SESSION_RESULT", sessionResult);
-
     // ─────────────────────────────────────────
-    // 🔐 AUDIT: login success
+    // 9️⃣ Audit success
     // ─────────────────────────────────────────
     await logAuthEvent({
       eventType: "LOGIN_SUCCESS",
@@ -208,7 +236,7 @@ export async function loginHandler(
     });
 
     // ─────────────────────────────────────────
-    // SUCCESS RESPONSE (cookie handled elsewhere)
+    // 🔚 Success response
     // ─────────────────────────────────────────
     return ctx.respond(
       {
@@ -222,7 +250,7 @@ export async function loginHandler(
         route: "/auth/login",
         session: {
           id: sessionResult.data.session_id,
-          ttl: 60 * 60 * 8, // 8 hours
+          ttl: 60 * 60 * 8,
         },
       }
     );

@@ -7,3 +7,8 @@
 .env.local
 .env.*.local
 supabase/.env
+# Supabase env files
+supabase/.env.local
+.env
+.env.*
+.env.seed.local

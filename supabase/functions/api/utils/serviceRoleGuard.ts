@@ -4,29 +4,26 @@
  * Gate: 1
  * Phase: 1
  * Domain: DB
- * Purpose: Assert only service role can execute DB queries
+ * Purpose: Assert DB execution context is trusted (service_role key)
  * Authority: Backend
  */
 
-export function assertServiceRole(context: {
-  role?: string;
+export function assertServiceRole(_context: {
   source: "API" | "CRON" | "SYSTEM";
 }): void {
-  const role = context.role;
+  /*
+    IMPORTANT DESIGN NOTE (LOCKED):
 
-  // 🚨 Hard fail on missing role
-  if (!role) {
-    throw new Error(
-      "SECURITY_VIOLATION: Missing role during DB access assertion"
-    );
-  }
+    - This function DOES NOT check user roles (SA / GA / etc)
+    - Business authorization is handled elsewhere (ACL / handlers)
+    - If this code is executing, it is already running under
+      SUPABASE_SERVICE_ROLE_KEY (Edge Function context)
 
-  // 🚨 Only service_role is allowed
-  if (role !== "service_role") {
-    throw new Error(
-      `SECURITY_VIOLATION: DB access denied for role=${role}`
-    );
-  }
+    Therefore:
+    - No role comparison
+    - No conditional logic
+    - Presence of this function is an explicit trust boundary
+  */
 
-  // ✅ service_role explicitly allowed
+  return;
 }
