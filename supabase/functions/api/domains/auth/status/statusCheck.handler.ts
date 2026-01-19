@@ -79,13 +79,11 @@ export async function statusCheckHandler(req: Request): Promise<Response> {
 
     switch (user.state) {
       case "FIRST_LOGIN_REQUIRED":
-      case "RESET_REQUIRED":
-        return buildOk(
+    return buildOk(
           "STATUS_FIRST_LOGIN_REQUIRED",
           "First login setup required.",
           "FIRST_LOGIN"
         );
-
       case "ACTIVE":
         return buildOk(
           "STATUS_COMPLETED",

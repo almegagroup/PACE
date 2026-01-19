@@ -31,12 +31,7 @@ export function checkAccountState(
     };
   }
 
-  if (state === ACCOUNT_STATE.RESET_REQUIRED) {
-    return {
-      ok: false,
-      reason: LOGIN_INTERNAL_FAILURE.RESET_REQUIRED,
-    };
-  }
+  
 
   if (state === ACCOUNT_STATE.DISABLED) {
     return {

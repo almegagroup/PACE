@@ -41,19 +41,6 @@ import { firstLoginHandler }
 
 import { forgotPasscodeHandler }
   from "./domains/auth/forgot-passcode/forgotPasscode.handler.ts";
-  import { resetRequestHandler }
-  from "./domains/auth/reset-request/resetRequest.handler.ts";
-  import {
-  listResetRequestsHandler,
-  approveResetRequestHandler,
-  rejectResetRequestHandler,
-} from "./domains/auth/reset-request/adminReset.handler.ts";
-import { resetCompleteHandler }
-  from "./domains/auth/reset-complete/resetComplete.handler.ts";
-
-
-
-
 // Utils
 import { apiResponse, Action } from "./utils/response.ts";
 
@@ -320,46 +307,6 @@ if (path.endsWith("/auth/forgot-passcode")) {
   return finalizeResponse(req, res);
 }
 
-// ───── RESET REQUEST ─────
-if (path.endsWith("/auth/reset-request")) {
-  if (req.method !== "POST") {
-    return finalizeResponse(
-      req,
-      apiResponse(
-        { status: "ERROR", code: "METHOD_NOT_ALLOWED", action: Action.NONE },
-        405
-      )
-    );
-  }
-
-  const rl = await applyRateLimit(req);
-  if (rl) return finalizeResponse(req, rl);
-
-  const res = await resetRequestHandler(req);
-  return finalizeResponse(req, res);
-}
-
-// ───── RESET COMPLETE ─────
-if (path.endsWith("/auth/reset-complete")) {
-  if (req.method !== "POST") {
-    return finalizeResponse(
-      req,
-      apiResponse(
-        { status: "ERROR", code: "METHOD_NOT_ALLOWED", action: Action.NONE },
-        405
-      )
-    );
-  }
-
-  const rl = await applyRateLimit(req);
-  if (rl) return finalizeResponse(req, rl);
-
-  const res = await resetCompleteHandler(req);
-  return finalizeResponse(req, res);
-}
-
-
-
   // ───── HUMAN CHALLENGE ─────
   if (path.endsWith("/auth/human-challenge")) {
     if (req.method !== "GET") {
@@ -421,80 +368,7 @@ if (path.endsWith("/auth/reset-complete")) {
 
   const aclResult = await resolveACL(req, contextResult);
   if (aclResult.response) return finalizeResponse(req, aclResult.response);
- // ─────────────────────────────────────────
-// ADMIN :: RESET REQUEST GOVERNANCE
-// ─────────────────────────────────────────
-
-// LIST RESET REQUESTS
-if (path === "/api/admin/auth/reset-requests") {
-  if (req.method !== "GET") {
-    return finalizeResponse(
-      req,
-      respond(
-        { status: "ERROR", code: "METHOD_NOT_ALLOWED", action: Action.NONE },
-        405
-      )
-    );
-  }
-
-  return finalizeResponse(
-  req,
-  await listResetRequestsHandler(req, {
-    user: contextResult.context,
-    respond,
-  })
-);
-}
-
-// APPROVE RESET REQUEST
-if (path.match(/^\/api\/admin\/auth\/reset-requests\/[^/]+\/approve$/)) {
-  if (req.method !== "POST") {
-    return finalizeResponse(
-      req,
-      respond(
-        { status: "ERROR", code: "METHOD_NOT_ALLOWED", action: Action.NONE },
-        405
-      )
-    );
-  }
-
-  const id = path.split("/")[5];
-
-  return finalizeResponse(
-  req,
-  await approveResetRequestHandler(req, {
-    user: contextResult.context,
-    params: { id },
-    respond,
-  })
-);
-
-}
-
-// REJECT RESET REQUEST
-if (path.match(/^\/api\/admin\/auth\/reset-requests\/[^/]+\/reject$/)) {
-  if (req.method !== "POST") {
-    return finalizeResponse(
-      req,
-      respond(
-        { status: "ERROR", code: "METHOD_NOT_ALLOWED", action: Action.NONE },
-        405
-      )
-    );
-  }
-
-  const id = path.split("/")[5];
-
-  return finalizeResponse(
-  req,
-  await rejectResetRequestHandler(req, {
-    user: contextResult.context,
-    params: { id },
-    respond,
-  })
-);
-}
-
+ 
 
   // ─────────────────────────────────────────
   // ADMIN ROUTES (FULL CONTEXT PASSTHROUGH)

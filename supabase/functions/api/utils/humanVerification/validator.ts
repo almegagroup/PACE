@@ -15,6 +15,7 @@
  * - Backend can recompute expected answer
  * - Frontend never knows expected answer
  * - No answer stored anywhere
+ * - Stateless (Edge-safe)
  * - Same logic for Postman / Frontend / Prod
  *
  * CONTRACT
@@ -32,67 +33,82 @@ type ValidateParams = {
 // ─────────────────────────────────────────
 const CHALLENGE_TTL_MS = 2 * 60 * 1000; // 2 minutes
 
+type DecodedAttempt = {
+  a: number;
+  op: "+" | "-" | "*";
+  b: number;
+  issuedAt: number;
+};
+
 // ─────────────────────────────────────────
 // Public API
 // ─────────────────────────────────────────
 export function validateAttempt(
-  req: Request,
+  _req: Request,
   params: ValidateParams
 ): boolean {
   const { attemptId, answer } = params;
 
-  // Basic sanity
+  // 1️⃣ Basic sanity
   if (!attemptId || typeof answer !== "number") {
     return false;
   }
 
-  // Decode attemptId
+  // 2️⃣ Decode attemptId
   const decoded = decodeAttemptId(attemptId);
   if (!decoded) {
     return false;
   }
 
-  const { a, b, issuedAt } = decoded;
+  const { a, op, b, issuedAt } = decoded;
 
-  // Expiry check
+  // 3️⃣ Expiry check
   if (Date.now() - issuedAt > CHALLENGE_TTL_MS) {
     return false;
   }
 
-  // Compute expected answer
-  const expected = a + b;
+  // 4️⃣ Compute expected answer
+  let expected: number;
 
-  // Final check
-  if (answer !== expected) {
-    return false;
+  switch (op) {
+    case "+":
+      expected = a + b;
+      break;
+    case "-":
+      expected = a - b;
+      break;
+    case "*":
+      expected = a * b;
+      break;
+    default:
+      return false;
   }
 
-  return true;
+  // 5️⃣ Final check
+  return answer === expected;
 }
 
 // ─────────────────────────────────────────
 // Internal helpers
 // ─────────────────────────────────────────
-
-function decodeAttemptId(
-  attemptId: string
-): { a: number; b: number; issuedAt: number } | null {
+function decodeAttemptId(attemptId: string): DecodedAttempt | null {
   try {
     /**
      * attemptId format (opaque to frontend):
-     * base64("a:b:timestamp")
+     * base64("a:op:b:timestamp")
      *
      * Example decoded string:
-     * "7:5:1690000000000"
+     * "8:*:7:1768391155048"
      */
     const raw = atob(attemptId);
     const parts = raw.split(":");
 
-    if (parts.length !== 3) return null;
+    if (parts.length !== 4) return null;
 
     const a = Number(parts[0]);
-    const b = Number(parts[1]);
-    const issuedAt = Number(parts[2]);
+    const op = parts[1] as DecodedAttempt["op"];
+    const b = Number(parts[2]);
+    const issuedAt = Number(parts[3]);
 
     if (
       Number.isNaN(a) ||
@@ -102,7 +118,11 @@ function decodeAttemptId(
       return null;
     }
 
-    return { a, b, issuedAt };
+    if (!["+", "-", "*"].includes(op)) {
+      return null;
+    }
+
+    return { a, op, b, issuedAt };
   } catch {
     return null;
   }

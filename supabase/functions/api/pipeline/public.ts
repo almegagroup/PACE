@@ -30,9 +30,7 @@ export function isPublicPath(req: Request): boolean {
     path === "/auth/first-login" ||
     path === "/auth/human-challenge" ||
     path === "/auth/forgot-password" ||
-    path === "/auth/forgot-passcode" ||
-    path === "/auth/reset-request" ||
-    path === "/auth/reset-complete"
+    path === "/auth/forgot-passcode" 
   );
 }
 

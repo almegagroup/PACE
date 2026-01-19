@@ -16,6 +16,7 @@
  * - No answer storage
  * - Frontend gets question + attemptId only
  * - attemptId is opaque
+ * - Stateless (Edge-safe)
  */
 
 type Challenge = {
@@ -29,23 +30,27 @@ type Challenge = {
 const MIN = 3;
 const MAX = 9;
 
+type Operator = "+" | "-" | "*";
+const OPERATORS: Operator[] = ["+", "-", "*"];
+
 // ─────────────────────────────────────────
 // Public API
 // ─────────────────────────────────────────
 export function generateChallenge(): Challenge {
   const a = randomInt(MIN, MAX);
   const b = randomInt(MIN, MAX);
+  const op = OPERATORS[randomInt(0, OPERATORS.length - 1)];
   const issuedAt = Date.now();
 
   /**
    * attemptId format (opaque):
-   * base64("a:b:timestamp")
+   * base64("a:op:b:timestamp")
    */
-  const raw = `${a}:${b}:${issuedAt}`;
+  const raw = `${a}:${op}:${b}:${issuedAt}`;
   const attemptId = btoa(raw);
 
   return {
-    question: `${a} + ${b} = ?`,
+    question: `${a} ${op} ${b} = ?`,
     attemptId,
   };
 }

@@ -15,12 +15,12 @@
  * - No frontend authority
  * - No answer storage
  * - Deterministic pass / fail
+ * - Stateless (Edge-safe)
  * - Same behaviour in Postman / Frontend / Prod
  * - Silent on reason, explicit on result
  */
 
 import { validateAttempt } from "./validator.ts";
-import { trackAttempt } from "./tracker.ts";
 
 export const humanVerification = {
   /**
@@ -35,23 +35,16 @@ export const humanVerification = {
     params: {
       attemptId: string;
       answer: number;
-      endpoint: "signup" | "recovery";
+      endpoint?: "signup" | "recovery"; // backward compatibility
     }
   ): Promise<boolean> {
     try {
-      // 1️⃣ Track attempt pattern (rate / retry / timing)
-      const allowed = trackAttempt(req, params.endpoint);
-      if (!allowed) {
-        return false;
-      }
-
-      // 2️⃣ Validate answer & timing
-      const result = validateAttempt(req, {
+      // Single source of truth:
+      // deterministic math + TTL
+      return validateAttempt(req, {
         attemptId: params.attemptId,
         answer: params.answer,
       });
-
-      return result === true;
     } catch {
       // Absolute safety: any error = FAIL
       return false;
