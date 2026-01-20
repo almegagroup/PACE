@@ -1,10 +1,13 @@
 /**
- * ID: FRONT-PUBLIC-LOGIN
+ * ID: FRONT-PUBLIC-LOGIN (FINAL)
  * Zone: Public (Pre Gate-8)
- * Purpose: ERP Login – Production Ready
+ * Authority: Backend (SSOT)
  *
- * Backend-driven
- * UI + Router only
+ * RULES:
+ * - Request payload MUST match backend contract
+ * - Success determined ONLY by `status === "OK"`
+ * - Navigation driven ONLY by `action`
+ * - No frontend assumptions
  */
 
 import { useState } from "react";
@@ -17,7 +20,7 @@ import FormError from "../../components/ui/FormError";
 export default function LoginPage() {
   const navigate = useNavigate();
 
-  const [userId, setUserId] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -27,6 +30,8 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
 
+    let data;
+
     try {
       const res = await fetch(
         `${import.meta.env.VITE_API_BASE_URL}/login`,
@@ -35,40 +40,37 @@ export default function LoginPage() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({
-            user_id: userId.trim(),
+            identifier: identifier.trim(),
             password,
           }),
         }
       );
 
-      const data = await res.json();
-
-      if (!data?.success) {
-        setError(data?.message || "Login failed");
-        setLoading(false);
+      try {
+        data = await res.json();
+      } catch {
+        setError("Invalid server response");
         return;
       }
 
-      switch (data.status) {
-        case "ACTIVE":
+      // 🔐 Backend is the only authority
+      if (data?.status !== "OK") {
+        setError(data?.message || "Login failed");
+        return;
+      }
+
+      // 🧭 Navigation strictly by backend action
+      switch (data.action) {
+        case "NONE":
           navigate("/app", { replace: true });
           break;
 
-        case "FIRST_LOGIN_REQUIRED":
+        case "FIRST_LOGIN":
           navigate("/auth/first-login", { replace: true });
           break;
 
-        case "RESET_REQUIRED":
-          navigate("/auth/forgot-password", { replace: true });
-          break;
-
-        case "PASSCODE_REQUIRED":
-          navigate("/auth/forgot-passcode", { replace: true });
-          break;
-
-        case "SIGNUP_REQUIRED":
-        case "NOT_FOUND":
-          navigate("/auth/signup-request", { replace: true });
+        case "WAIT_FOR_ACCESS":
+          setError("Access pending approval");
           break;
 
         default:
@@ -95,8 +97,8 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="mt-8 space-y-6">
             <BaseInput
               label="ERP User ID"
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               disabled={loading}
               autoFocus
             />
@@ -114,7 +116,7 @@ export default function LoginPage() {
             <BaseButton
               type="submit"
               loading={loading}
-              disabled={!userId || !password}
+              disabled={!identifier || !password}
               full
             >
               Sign In
