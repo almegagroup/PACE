@@ -69,7 +69,7 @@ export async function loginHandler(
     const db = getServiceDb();
 
     const { data: user, error } = await db
-      .from("auth_users")
+      .from("secure.auth_users")
       .select("id, state, is_sa, is_ga, acl_assigned")
       .eq("identifier", canonicalId)
       .single();
@@ -111,7 +111,7 @@ export async function loginHandler(
     // 🔑 Load credential lifecycle (Gate-4)
     // ─────────────────────────────────────────
     const { data: creds } = await db
-      .from("auth_credentials")
+      .from("secure.auth_credentials")
       .select("force_first_login")
       .eq("user_id", user.id)
       .single();

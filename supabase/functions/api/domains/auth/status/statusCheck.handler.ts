@@ -64,7 +64,7 @@ export async function statusCheckHandler(req: Request): Promise<Response> {
     : `${value}@pace.in`;
 
   const { data: user } = await db
-    .from("auth_users")
+    .from("secure.auth_users")
     .select("state")
     .eq("identifier", canonicalId)
     .maybeSingle();
