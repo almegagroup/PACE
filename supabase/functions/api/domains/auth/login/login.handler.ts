@@ -193,7 +193,7 @@ export async function loginHandler(
       await logAuthEvent({
         eventType: "DEVICE_CHANGED",
         identifier,
-        result: "SOFT_SIGNAL",
+        result: "OK",
         requestId: req.headers.get("X-Request-Id") ?? undefined,
       });
     }
@@ -203,19 +203,19 @@ export async function loginHandler(
     // ─────────────────────────────────────────
     const sessionResult = await createSession({ id: user.id }, req);
 
-    if (!sessionResult.ok) {
-      await logAuthEvent({
-        eventType: "LOGIN_FAILED",
-        identifier,
-        result: "FAILED",
-        requestId: req.headers.get("X-Request-Id") ?? undefined,
-      });
+if (!sessionResult.ok || !sessionResult.data) {
+  await logAuthEvent({
+    eventType: "LOGIN_FAILED",
+    identifier,
+    result: "FAILED",
+    requestId: req.headers.get("X-Request-Id") ?? undefined,
+  });
 
-      return ctx.respond(
-        { ok: false, code: LOGIN_PUBLIC_CODE.FAILED, action: "NONE" },
-        401
-      );
-    }
+  return ctx.respond(
+    { ok: false, code: LOGIN_PUBLIC_CODE.FAILED, action: "NONE" },
+    401
+  );
+}
 
     // ─────────────────────────────────────────
     // 8️⃣ Single active session enforcement

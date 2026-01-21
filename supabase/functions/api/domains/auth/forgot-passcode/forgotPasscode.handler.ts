@@ -17,7 +17,7 @@
 
 import { apiResponse, Action } from "../../../utils/response.ts";
 import { humanVerification } from "../../../utils/humanVerification/index.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.5";
 
 // -----------------------------------------------------------------------------
 // ENV

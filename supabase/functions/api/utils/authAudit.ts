@@ -20,7 +20,7 @@
  * - No RLS leakage
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.5";
 
 /* -------------------------------------------------------------------------- */
 /* ENV                                                                         */
@@ -76,7 +76,8 @@ export async function logAuthEvent(params: {
     | "STATUS_CHECK"
     | "FIRST_LOGIN_REQUIRED"
     | "FIRST_LOGIN_COMPLETED"
-    | "LOGIN_BLOCKED_ACL";
+    | "LOGIN_BLOCKED_ACL"
+    | "DEVICE_CHANGED";
   identifier?: string | null;
   requestId?: string | null;
   result: "OK" | "FAILED" | "BLOCKED";

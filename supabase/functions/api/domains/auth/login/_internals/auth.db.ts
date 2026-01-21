@@ -12,7 +12,7 @@
 // - Currently scoped ONLY for auth_audit_logs + auth internals
 // ============================================================================
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.5";
 import { logSessionTransition } from "./session.timeline.ts";
 
 // -----------------------------------------------------------------------------
