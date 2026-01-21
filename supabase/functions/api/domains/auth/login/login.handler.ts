@@ -38,20 +38,30 @@ export async function loginHandler(
     // ─────────────────────────────────────────
     const body = (req as any)._body;
 
-    if (!body) {
-      return ctx.respond(
-        { ok: false, code: LOGIN_PUBLIC_CODE.FAILED, action: "NONE" },
-        401
-      );
-    }
+   if (!body) {
+  return ctx.respond(
+    {
+      ok: false,
+      code: LOGIN_PUBLIC_CODE.FAILED,
+      action: "NONE",
+      debug: "NO_BODY"
+    },
+    401
+  );
+}
 
     const { identifier, password } = body;
     if (!identifier || !password) {
-      return ctx.respond(
-        { ok: false, code: LOGIN_PUBLIC_CODE.FAILED, action: "NONE" },
-        401
-      );
-    }
+  return ctx.respond(
+    {
+      ok: false,
+      code: LOGIN_PUBLIC_CODE.FAILED,
+      action: "NONE",
+      debug: "NO_CREDENTIALS"
+    },
+    401
+  );
+}
 
     // ─────────────────────────────────────────
     // 2️⃣ Canonical identifier
@@ -82,11 +92,16 @@ export async function loginHandler(
         requestId: req.headers.get("X-Request-Id") ?? undefined,
       });
 
-      return ctx.respond(
-        { ok: false, code: LOGIN_PUBLIC_CODE.FAILED, action: "NONE" },
-        401
-      );
-    }
+       return ctx.respond(
+    {
+      ok: false,
+      code: LOGIN_PUBLIC_CODE.FAILED,
+      action: "NONE",
+      debug: "USER_NOT_FOUND"
+    },
+    401
+  );
+}
 
     // ─────────────────────────────────────────
     // 4️⃣ Password verification
@@ -102,10 +117,15 @@ export async function loginHandler(
       });
 
       return ctx.respond(
-        { ok: false, code: LOGIN_PUBLIC_CODE.FAILED, action: "NONE" },
-        401
-      );
-    }
+    {
+      ok: false,
+      code: LOGIN_PUBLIC_CODE.FAILED,
+      action: "NONE",
+      debug: "PASSWORD_FAIL"
+    },
+    401
+  );
+}
 
     // ─────────────────────────────────────────
     // 🔑 Load credential lifecycle (Gate-4)
@@ -131,11 +151,16 @@ export async function loginHandler(
         requestId: req.headers.get("X-Request-Id") ?? undefined,
       });
 
-      return ctx.respond(
-        { ok: false, code: LOGIN_PUBLIC_CODE.FAILED, action: "NONE" },
-        401
-      );
-    }
+       return ctx.respond(
+    {
+      ok: false,
+      code: LOGIN_PUBLIC_CODE.FAILED,
+      action: "NONE",
+      debug: "STATE_FAIL"
+    },
+    401
+  );
+}
 
     // ─────────────────────────────────────────
     // 🔐 Gate-4.3 / 4.3A / Option-B Enforcement
@@ -212,7 +237,12 @@ if (!sessionResult.ok || !sessionResult.data) {
   });
 
   return ctx.respond(
-    { ok: false, code: LOGIN_PUBLIC_CODE.FAILED, action: "NONE" },
+    {
+      ok: false,
+      code: LOGIN_PUBLIC_CODE.FAILED,
+      action: "NONE",
+      debug: "SESSION_FAIL"
+    },
     401
   );
 }
@@ -258,8 +288,13 @@ if (!sessionResult.ok || !sessionResult.data) {
     console.error("[LOGIN] UNHANDLED_EXCEPTION", err);
 
     return ctx.respond(
-      { ok: false, code: LOGIN_PUBLIC_CODE.FAILED, action: "NONE" },
-      401
-    );
+  {
+    ok: false,
+    code: LOGIN_PUBLIC_CODE.FAILED,
+    action: "NONE",
+    debug: "UNHANDLED_EXCEPTION"
+  },
+  401
+);
   }
 }
