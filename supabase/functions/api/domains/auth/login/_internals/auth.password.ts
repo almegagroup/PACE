@@ -2,11 +2,15 @@
 // PACE-ERP :: AUTH DOMAIN (INTERNAL)
 // Gate  : 2 (AUTH)
 // File  : auth.password.ts
-// Role  : Password verification (Edge-safe, pure JS)
+// Role  : Password verification (DB-native, Edge-safe)
 // Status: FINAL – DO NOT TOUCH
+//
+// AUTHORITY RULE:
+// - Password verification authority = DATABASE ONLY
+// - Edge acts as orchestrator, never as crypto authority
+// - Uses pgcrypto crypt() via SECURITY DEFINER RPC
 // ============================================================================
 
-import bcrypt from "https://esm.sh/bcryptjs@2.4.3";
 import { getServiceDb } from "./auth.db.ts";
 
 export async function verifyPassword(
@@ -17,13 +21,18 @@ export async function verifyPassword(
 
   const db = getServiceDb();
 
-  const { data, error } = await db
-    .from("auth_credentials")
-    .select("password_hash")
-    .eq("user_id", userId)
-    .maybeSingle();
+  const { data, error } = await db.rpc(
+    "verify_user_password",
+    {
+      p_user_id: userId,
+      p_password: plain,
+    }
+  );
 
-  if (error || !data?.password_hash) return false;
+  if (error) {
+    // Silent fail → login.handler will return generic 401
+    return false;
+  }
 
-  return bcrypt.compareSync(plain, data.password_hash);
+  return data === true;
 }
