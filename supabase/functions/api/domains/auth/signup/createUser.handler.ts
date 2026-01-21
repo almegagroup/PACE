@@ -15,7 +15,7 @@
 
 import { apiResponse, Action } from "../../../utils/response.ts";
 import { logSignupGovernanceEvent } from "../../../utils/authAudit.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.5";
 import type { RequestContext } from "../../../pipeline/context.ts";
 
 // -----------------------------------------------------------------------------

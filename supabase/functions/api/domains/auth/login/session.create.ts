@@ -81,7 +81,7 @@ export async function createSession(
  // ✅ Gate-3.5 Device Tag (SOFT, non-PII)
   const deviceTag = generateDeviceTag(req);
   // -------- Insert session record --------
- const { error } = await db.from("secure.erp_sessions").insert({
+ const { error } = await db.from("erp_sessions").insert({
     id: sessionId,
     user_id: user.id,
     state: "ACTIVE",

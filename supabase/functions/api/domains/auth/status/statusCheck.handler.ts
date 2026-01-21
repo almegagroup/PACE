@@ -64,10 +64,11 @@ export async function statusCheckHandler(req: Request): Promise<Response> {
     : `${value}@pace.in`;
 
   const { data: user } = await db
-    .from("secure.auth_users")
-    .select("state")
-    .eq("identifier", canonicalId)
-    .maybeSingle();
+  .schema("secure")
+  .from("auth_users")
+  .select("state")
+  .eq("identifier", canonicalId)
+  .maybeSingle();
 
   if (user) {
     await logAuthEvent({

@@ -18,7 +18,7 @@ export async function verifyPassword(
   const db = getServiceDb();
 
   const { data, error } = await db
-    .from("secure.auth_credentials")
+    .from("auth_credentials")
     .select("password_hash")
     .eq("user_id", userId)
     .maybeSingle();

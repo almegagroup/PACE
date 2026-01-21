@@ -8,13 +8,13 @@
 
 import { apiResponse, Action } from "../../../utils/response.ts";
 import { humanVerification } from "../../../utils/humanVerification/index.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.5";
 
 // -----------------------------------------------------------------------------
 // ENV (MANDATORY)
 // -----------------------------------------------------------------------------
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
   throw new Error("SUPABASE_ENV_MISSING");
@@ -80,7 +80,7 @@ export async function firstLoginHandler(req: Request): Promise<Response> {
   const hvOk = await humanVerification.validate(req, {
     attemptId: hv_attempt_id,
     answer: hv_answer,
-    endpoint: "first_login",
+    endpoint: "signup",
   });
 
   if (!hvOk) {
@@ -129,7 +129,7 @@ export async function firstLoginHandler(req: Request): Promise<Response> {
     status: "OK",
     code: "FIRST_LOGIN_COMPLETED",
     message: "Account setup complete. Please login.",
-    action: Action.GO_TO_LOGIN,
+    action: Action.NONE,
   });
 }
 
