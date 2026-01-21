@@ -58,6 +58,7 @@ export async function checkCredentials(
   const db = getServiceDb();
 
   const { data: user, error } = await db
+  .schema("secure")
     .from("auth_users")
     .select("id, state")
     .eq("identifier", canonicalId)

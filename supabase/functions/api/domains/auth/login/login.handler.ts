@@ -78,11 +78,12 @@ export async function loginHandler(
     // ─────────────────────────────────────────
     const db = getServiceDb();
 
-    const { data: user, error } = await db
-      .from("auth_users")
-      .select("id, state, is_sa, is_ga, acl_assigned")
-      .eq("identifier", canonicalId)
-      .single();
+   const { data: user, error } = await db
+  .schema("secure")
+  .from("auth_users")
+  .select("id, state, is_sa, is_ga, acl_assigned")
+  .eq("identifier", canonicalId)
+  .single();
 
     if (error || !user) {
       await logAuthEvent({
@@ -131,10 +132,11 @@ export async function loginHandler(
     // 🔑 Load credential lifecycle (Gate-4)
     // ─────────────────────────────────────────
     const { data: creds } = await db
-      .from("auth_credentials")
-      .select("force_first_login")
-      .eq("user_id", user.id)
-      .single();
+  .schema("secure")
+  .from("auth_credentials")
+  .select("force_first_login")
+  .eq("user_id", user.id)
+  .single();
 
     // ─────────────────────────────────────────
     // 5️⃣ Account state check (ID-2.1B)
