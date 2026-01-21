@@ -4,12 +4,11 @@
 -- ID    : AUTH_VERIFY_PASSWORD_RPC
 -- Purpose : DB-native password verification using pgcrypto
 -- Status  : FINAL
--- Notes   : Edge-safe, deterministic, audit-compliant
 -- ============================================================================
 
 BEGIN;
 
--- Ensure pgcrypto is available (idempotent)
+-- Ensure pgcrypto exists
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- Canonical password verification function
@@ -23,7 +22,7 @@ SECURITY DEFINER
 SET search_path = secure, public
 AS $$
   SELECT
-    crypt(p_password, c.password_hash) = c.password_hash
+    public.crypt(p_password, c.password_hash) = c.password_hash
   FROM secure.auth_credentials c
   WHERE c.user_id = p_user_id;
 $$;
